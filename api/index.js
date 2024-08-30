@@ -6,6 +6,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const cors = require("cors")
 const cookieParser = require("cookie-parser");
+const ws = require("ws")
 
 mongoose.connect("mongodb://127.0.0.1:27017/chatapp").then(()=>console.log("database connected"));
 const bcryptSalt=bcrypt.genSaltSync(10);
@@ -71,6 +72,35 @@ app.post('/register',async(req,res)=>{
     
 })
 
-app.listen(8000,()=>{
+const server = app.listen(8000,()=>{
     console.log("server is listening to port 8000")
 })
+
+const wss = new ws.WebSocketServer({server});
+
+wss.on('connection',(connection,req)=>{
+    const cookie = req.headers.cookie;
+    if(cookie){
+        const cookieTokenString = cookie.split(';').find(str=>str.startsWith('token='));
+        if(cookieTokenString){
+            const token = cookieTokenString.split('=')[1];
+            if(token){
+                jwt.verify(token,jwtSecret,{},(err,userData)=>{
+                    if (err) throw err;
+                    connection.userId = userData.id;
+                    connection.username = userData.username;
+                })
+            }
+        }
+    }
+    // console.log([...wss.clients].map(c=>c.username))
+    [...wss.clients].forEach((client)=>{
+        client.send(JSON.stringify({
+            online:[...wss.clients].map(c=>({username:c.username,userId:c.userId}))
+        }
+
+        ))
+    })
+})
+
+
