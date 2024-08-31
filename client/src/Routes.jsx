@@ -5,6 +5,7 @@ import Chat from "./Chat";
 
 export default function Routes(){
     const {username,id}=useContext(UserContext)
+    // console.log(id);
 
     if(username){
         return(

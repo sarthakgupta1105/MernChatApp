@@ -4,9 +4,9 @@ export default function Avatar({userId,username}){
     const userIdBase10=parseInt(userId,16);
     const colorIndex = userIdBase10 % colors.length;
     const color = colors[colorIndex];
-    console.log(color)
+    // console.log(color)
     return(
-        <div className={"h-8 w-8 rounded-full flex items-center "+color}>
+        <div className={"h-8 w-8 rounded-full flex items-center font-normal "+color}>
             <div className="m-auto">
                 {username[0]}
             </div>
