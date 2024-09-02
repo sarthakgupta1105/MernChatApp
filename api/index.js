@@ -8,12 +8,15 @@ const cookieParser = require("cookie-parser");
 const User = require("./models/User");
 const Message = require("./models/Message");
 const ws = require("ws");
+const fs = require("fs");
 
 mongoose
   .connect("mongodb://127.0.0.1:27017/chatapp")
   .then(() => console.log("database connected"));
 const bcryptSalt = bcrypt.genSaltSync(10);
 const jwtSecret = "secret";
+
+app.use("/uploads", express.static(__dirname + "/uploads"));
 app.use(
   cors({
     credentials: true,
@@ -25,6 +28,30 @@ app.use(cookieParser());
 
 app.get("/test", (req, res) => {
   res.json("test");
+});
+
+app.get("/people", async (req, res) => {
+  const users = await User.find({}, { _id: 1, username: 1 });
+  res.json(users);
+});
+
+app.get("/messages/:userId", async (req, res) => {
+  const { userId } = req.params;
+  let ourUserId = null;
+  const token = req.cookies?.token;
+  jwt.verify(token, jwtSecret, {}, (err, token) => {
+    if (err) throw err;
+    if (token) {
+      // console.log(token);
+      ourUserId = token.id;
+      // console.log(ourUserId);
+    }
+  });
+  let messages = await Message.find({
+    sender: { $in: [userId, ourUserId] },
+    recipient: { $in: [userId, ourUserId] },
+  }).sort({ createdAt: 1 });
+  res.json(messages);
 });
 
 app.get("/profile", (req, res) => {
@@ -62,6 +89,10 @@ app.post("/login", async (req, res) => {
   }
 });
 
+app.post("/logout", (req, res) => {
+  res.cookie("token", "", {}).json("ok");
+});
+
 app.post("/register", async (req, res) => {
   const { username, password } = req.body;
   try {
@@ -87,6 +118,33 @@ const server = app.listen(8000, () => {
 const wss = new ws.WebSocketServer({ server });
 
 wss.on("connection", (connection, req) => {
+  function notifyAboutOnlinePeople() {
+    [...wss.clients].forEach((client) => {
+      client.send(
+        JSON.stringify({
+          online: [...wss.clients].map((c) => ({
+            username: c.username,
+            userId: c.userId,
+          })),
+        })
+      );
+    });
+  }
+  // something new,try to understand
+  connection.isAlive = true;
+  connection.timer = setInterval(()=>{
+      connection.ping();
+      connection.deathTimer = setTimeout(()=>{
+          connection.isAlive=false;
+          clearInterval(connection.timer)
+          connection.terminate();
+          notifyAboutOnlinePeople();
+          console.log('connection closed');
+      },1000)
+  },5000);
+  connection.on('pong',()=>{
+      clearTimeout(connection.deathTimer);
+  })
   //read userId and username from cookie for this connection
   const cookie = req.headers.cookie;
   if (cookie) {
@@ -108,39 +166,48 @@ wss.on("connection", (connection, req) => {
   //sending message
   connection.on("message", async (message) => {
     const messageData = JSON.parse(message.toString());
-    // console.log(messageData);
-    const { recipient, text } = messageData;
-    const messageDoc = await Message.create({
-        sender: connection.userId,
-        recipient,
-        text,
+    console.log(messageData);
+    const { recipient, text, file } = messageData;
+    console.log(recipient, text, file);
+    let filename = null;
+    if (file) {
+      // console.log(file);
+      let parts = file.name.split(".");
+      let ext = parts[parts.length - 1];
+      filename = Date.now() + "." + ext;
+      const pathname = __dirname + "/uploads/" + filename;
+      const bufferData = new Buffer(file.data.split(",")[1], "base64");
+      fs.writeFile(pathname, bufferData, () => {
+        console.log("file saved:" + pathname);
       });
-    if (recipient && text) {
+    }
+    const messageDoc = await Message.create({
+      sender: connection.userId,
+      recipient,
+      text,
+      file: file ? filename : null,
+    });
+    console.log(messageDoc);
+    if (recipient && (text || file)) {
+      console.log(text, file, recipient);
       [...wss.clients]
         .filter((c) => c.userId === recipient)
         .forEach((c) =>
           c.send(
             JSON.stringify({
-              text:messageDoc.text,
-              recipient:messageDoc.recipient,
+              text: messageDoc.text,
+              file: file ? filename : null,
+              recipient: messageDoc.recipient,
               sender: connection.userId,
-              id: messageDoc._id,
+              _id: messageDoc._id,
             })
           )
         );
+        console.log("sending messageData");
     }
   });
 
   //notify everyone about onlinePeople (when people login)
   // console.log([...wss.clients].map(c=>c.username))
-  [...wss.clients].forEach((client) => {
-    client.send(
-      JSON.stringify({
-        online: [...wss.clients].map((c) => ({
-          username: c.username,
-          userId: c.userId,
-        })),
-      })
-    );
-  });
+  notifyAboutOnlinePeople();
 });
