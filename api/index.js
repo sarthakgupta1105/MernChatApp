@@ -100,7 +100,7 @@ app.post("/register", async (req, res) => {
       username,
       password: bcrypt.hashSync(password, bcryptSalt),
     });
-    jwt.sign({ userId: userDoc._id, username }, jwtSecret, {}, (err, token) => {
+    jwt.sign({ id: userDoc._id, username }, jwtSecret, {}, (err, token) => {
       if (err) throw err;
       res.cookie("token", token).status(201).json({
         id: userDoc._id,
@@ -156,8 +156,12 @@ wss.on("connection", (connection, req) => {
       if (token) {
         jwt.verify(token, jwtSecret, {}, (err, userData) => {
           if (err) throw err;
+          console.log(userData);
+          // console.log(userData.id);
           connection.userId = userData.id;
+          console.log(connection.userId);
           connection.username = userData.username;
+          // console.log(connection.username);
         });
       }
     }
@@ -208,6 +212,7 @@ wss.on("connection", (connection, req) => {
   });
 
   //notify everyone about onlinePeople (when people login)
+  // console.log([...wss.clients].map(c=>c.userId))
   // console.log([...wss.clients].map(c=>c.username))
   notifyAboutOnlinePeople();
 });

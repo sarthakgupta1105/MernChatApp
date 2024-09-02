@@ -14,7 +14,7 @@ export default function Chat() {
   const [newMessageText, setNewMessageText] = useState("");
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [update,setUpdate]=useState(0);
+  // const [update,setUpdate]=useState(0);
   const divUnderMessages = useRef(null);
 
   useEffect(() => {
@@ -73,12 +73,15 @@ export default function Chat() {
     if ("online" in messageData) {
       showOnlinePeople(messageData.online);
     } else if ("text" in messageData) {
-      console.log(messageData);
-      console.log("data found");
-      //   if (messageData.sender === selectedUserId) {
-      //     setMessages((prev) => [...prev, { ...messageData }]);
+      // console.log(messageData);
+      // console.log("data received");
+      // console.log(selectedUserId);
+      // console.log(messageData.sender,selectedUserId)
+      //   if (messageData.sender == selectedUserId) {
+      //     setMessages((prev) => [...prev, { ...messageData }])
       //   }
       setMessages((prev) => [...prev, { ...messageData }]);
+
     }
     console.log({ ev, messageData });
   }
@@ -134,8 +137,10 @@ export default function Chat() {
 
   const onlinePeopleExcludingLoggedInUser = { ...onlinePeople };
   delete onlinePeopleExcludingLoggedInUser[id];
+  // console.log(onlinePeopleExcludingLoggedInUser);
 
   const messagesWithoutDupes = uniqBy(messages, "_id");
+  // console.log(messagesWithoutDupes);
   return (
     <div className="flex h-screen">
       <div className="bg-white w-1/3 py-3 pl-3 flex flex-col">
